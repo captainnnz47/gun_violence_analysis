@@ -64,7 +64,6 @@ input<-weightTfIdf(myDTM)
 set.seed(2022) 
 
 # Run the model using kmeans()
-#########可以改次数和个数#########
 results <- kmeans(input, centers = 3, nstart = 50)               
 results
 
