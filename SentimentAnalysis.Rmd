@@ -1,0 +1,154 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+Research Question: What is the relationship between users' tones and attitudes
+towards gun control/campus gun violence related to their gender or resident state? 
+
+Hypothesis 1: Females are more likely to have a negative sentiment towards campus gun violence.
+Hypothesis 2: Users in blue states are more likely to have a negative sentiment towards campus gun violence.
+
+### Data preparation and cleaning ###
+Clean the Twitter data by removing special characters, URLs, digits and 
+punctuation. Removing special characters is important at this stage, as these 
+can interfere with many text parsers. Removing stopwords, on the other hand, is 
+less important, as these typically have a neutral value in most sentiment analysis lexica.
+
+```{r}
+campus <-read.csv("/Users/ZXY/Desktop/A4/Group3new.csv", header=TRUE, sep=",") 
+campus_text <-campus$Title
+#Remove special characters, e.g., emoji
+campus_text <- gsub("[^\x20-\x7e]"," ", campus_text) 
+#Remove URLs, punctuation, and digits
+campus_text <- gsub("(@|http)[^[:blank:]]*|[[:punct:]]|[[:digit:]]"," ", campus_text) 
+#Remove extra spaces. perl=TRUE tells R to use the PCRE regular expressions library. 
+campus_text <- gsub("(?<=[\\s])\\s*|^\\s+|\\s+$", "", campus_text, perl=TRUE) 
+
+head(campus_text)
+```
+
+### Sentiment Analysis ###
+
+
+```{r}
+library(syuzhet)
+
+sentiment_bing <- get_sentiment(campus_text, method = "bing")
+
+sentiment_new<-ifelse(sentiment_bing < 0, -1, sentiment_bing) #Turn all negative sentiment values to -1
+sentiment_new<-ifelse(sentiment_new > 0, 1, sentiment_new) #And turn all positive sentiment values to 1
+sentiment_new<-ifelse(sentiment_new == 0, 0, sentiment_new) 
+
+campus$sentiment<-sentiment_new #Add a column with the sentiment values to the dataframe
+
+write.csv(campus, "/Users/ZXY/Desktop/A4/results.csv", row.names = FALSE)
+```
+
+### Hypothesis 1: Females are more likely to have a negative sentiment towards campus gun violence ###
+
+```{r}
+# Read the results from sentiment analysis
+senti <-read.csv("/Users/ZXY/Desktop/A4/results.csv", header=TRUE, sep=",") 
+
+# Convert every null value into "unknown"
+for(i in 1:nrow(senti)){
+  if(senti$Gender[i] == ""){
+    senti$Gender[i] = "unknown"
+  }
+}
+
+#Convert "female", "male", and "unknown" into 1, 2, and 3 and generate a new column
+for(i in 1:nrow(senti)){
+  if (senti$Gender[i] == "female") {
+    campus$gender_number[i] = 1
+  }
+  if (senti$Gender[i] == "male") {
+    campus$gender_number[i] = 2
+  }
+  if (senti$Gender[i] == "unknown") {
+    campus$gender_number[i] = 3
+  }
+}
+write.csv(campus, "/Users/ZXY/Desktop/A4/results.csv", row.names = FALSE)
+
+# Calculate the average score for each gender ("female", "male", "unknown")
+female_total_score = 0
+female_count = 0
+male_total_score = 0
+male_count = 0
+for (i in 1:nrow(senti)){
+  if (senti$Gender[i] == "female"){
+    female_total_score = female_total_score + senti$sentiment[i]
+    female_count = female_count + 1
+  }
+  if (senti$Gender[i] == "male"){
+    male_total_score = male_total_score + senti$sentiment[i]
+    male_count = male_count + 1
+  }
+}
+
+female_count
+male_count
+female_average_score <- female_total_score / female_count
+male_average_score <- male_total_score / male_count
+
+female_average_score
+male_average_score
+```
+From the results, we can conclude that females are actually more likely to have 
+negative sentiments towards campus gun violence.
+
+
+
+### Hypothesis 2: Users in blue states are more likely to have a negative sentiment towards campus gun violence ###
+
+
+```{r}
+# Read the results from sentiment analysis
+senti <-read.csv("/Users/ZXY/Desktop/A4/results.csv", header=TRUE, sep=",") 
+
+blue_state <- list('AZ', 'CA', 'CO', 'CT', 'DE', 'GA', 'HI', 'IL', 'ME', 'MD', 
+                   'MA', 'MI', 'MN', 'NV', 'NH', 'NJ', 'NM', 'NY', 'OR', 'PA', 
+                   'RI', 'VT', 'VA', 'WA', 'WI')
+
+red_state <- list('AL', 'AK', 'AR', 'FL', 'ID', 'IN', 'IA', 'KS', 'KY', 'LA',
+                  'MS', 'MO', 'MT', 'NE', 'NC', 'ND', 'OH', 'OK', 'SC', 'SD',
+                  'TN', 'UT', 'WV', 'WY')
+
+# Calculate the average scores for "blue states" and "red states"
+blue_state_total_score = 0
+blue_state_count = 0
+red_state_total_score = 0
+red_state_count = 0
+others = 0
+
+for (i in 1:nrow(senti)){
+  if (senti$City.Code[i] != ""){
+    state <- toupper(substr(senti$City.Code[i], 5, 6))
+    
+    if (state %in% blue_state){
+      blue_state_total_score = blue_state_total_score + senti$sentiment[i]
+      blue_state_count = blue_state_count + 1
+      senti$state_number[i] = 1
+    } else if(state %in% red_state) {
+      red_state_total_score = red_state_total_score + senti$sentiment[i]
+      red_state_count = red_state_count + 1
+      senti$state_number[i] = 2
+    } else {
+      others = others + 1
+      senti$state_number[i] = 3
+    }
+  } else {
+    senti$state_number[i] = 4
+  }
+}
+write.csv(senti, "/Users/ZXY/Desktop/A4/results.csv", row.names = FALSE)
+blue_state_average_score <- blue_state_total_score / blue_state_count
+red_state_average_score <- red_state_total_score / red_state_count
+
+blue_state_average_score
+red_state_average_score
+```
+From the results, we can conclude that users in blue states are actually more likely to have 
+negative sentiments towards campus gun violence.

@@ -1,0 +1,108 @@
+---
+title: "A4 Unsupervised Learning"
+---
+
+
+"Research Question: What are the subtopics of these 10k tweets related to 
+'gun violence' if they are divided into three?"
+
+Hypothesis 1: The three subtopics are xxx, xxx, and xxx.
+Hypothesis 2: The three subtopics are xxx, xxx, and xxx.
+
+### Data preparation and cleaning ###
+```{r}
+tweet_text <-tweets$Title
+
+# Remove special characters, e.g., Emoji
+tweet_text <- gsub("[^\x20-\x7e]"," ", tweet_text) 
+# Remove URLs, punctuation, and digits
+tweet_text <- gsub("(@|http)[^[:blank:]]*|[[:punct:]]|[[:digit:]]"," ", tweet_text) 
+# Preserve some phrases/concepts
+tweets_text<-gsub("Republican Party", "republicanparty", tweet_text) 
+
+head(tweet_text)
+
+library(tm)
+library(SparseM)
+library(SnowballC)
+library(tidytext)
+
+# The actual English tweets are converted to a corpus
+myCorpus<-VCorpus(VectorSource(tweet_text))
+
+# Clean data
+myCorpus<-tm_map(myCorpus, removePunctuation)
+myCorpus<-tm_map(myCorpus, removeNumbers)
+myCorpus<-tm_map(myCorpus, content_transformer(tolower))
+myCorpus<-tm_map(myCorpus, stripWhitespace)
+
+# Remove English stop words
+myStopwords <- c(stopwords('english'), "rt", "trump","donald") 
+myCorpus <- tm_map(myCorpus, removeWords, myStopwords)
+
+# Stemming 
+myCorpus<-tm_map(myCorpus, stemDocument) 
+myCorpus
+
+# BUILDING A DOCUMENT-TERM MATRIX (DTM)
+# minWordLength defines the minimal number of letters of a word that you wish to include in the dtm. 
+myDTM <- DocumentTermMatrix(myCorpus, control = list(minWordLength = 3)) 
+# Remove words that occurred in less than 0.5% of the documents
+myDTM <- removeSparseTerms(myDTM,0.995) 
+
+# Remove empty documents
+myDTM <- myDTM[rowSums(as.matrix(myDTM))>0,] 
+
+```
+
+### Choose a Model ###
+
+```{r}
+# Model:K-mean clustering 
+input<-weightTfIdf(myDTM)    
+
+set.seed(2022) 
+
+# Run the model using kmeans()
+#########可以改次数和个数#########
+results <- kmeans(input, centers = 3, nstart = 50)               
+results
+
+# Look at Most Informative Words  
+for (i in 1:length(results$withinss)) {
+  # For each cluster, this defines the documents in that cluster
+  inGroup <- which(results$cluster == i) 
+  # A sub group of documents in cluster i
+  within <- myDTM[inGroup,]
+  # This is a formatting correction when there is only one doc in a cluster
+  if(length(inGroup) == 1) within <- t(as.matrix(within))
+  # All documents minus those in cluster i
+  out <- myDTM[-inGroup,]
+  # Take the difference in means for each term
+  words <- apply(within,2,mean) - apply(out,2,mean) 
+  print(c("Cluster", i), quote = F)
+  # Take the top 10 labels (terms)
+  labels <- order(words, decreasing = T)[1:10] 
+  # From here down just labels
+  print(names(words)[labels], quote = F)     
+  if(i == length(results$withinss)) {    
+    print("Cluster Membership")
+    print(table(results$cluster))
+    print("Within cluster sum of squares by cluster")
+    print(results$withinss)
+  }
+}
+```
+
+### Data Visualization ###
+
+```{r}
+# Visualize the results 
+hist(results$cluster)   
+
+# See the documents in each cluster
+# Document numbers in cluster 1
+documents_num <- which(results$cluster == 1) 
+documents_num
+```
+
